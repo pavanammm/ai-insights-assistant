@@ -1,23 +1,22 @@
 import time
-from sqlalchemy import text
+from fastapi import HTTPException
+
+from app.planner.query_planner import QueryPlanner
 from app.db.session import SessionLocal
 from app.ai.intent_service import IntentService
-from app.core.metrics import ALLOWED_METRICS
-from app.services.fast_path_builders import (
-    build_ticket_count_sql,
-    build_ticket_list_sql
+from app.metrics.registry import METRIC_EXECUTORS
+from app.core.allowed_fields import (
+    ALLOWED_GROUP_BY_FIELDS,
+    ALLOWED_FILTER_FIELDS,
+    ALLOWED_METRICS
 )
-
-FAST_PATH_BUILDERS = {
-    "ticket_count": build_ticket_count_sql,
-    "ticket_list": build_ticket_list_sql
-}
 
 
 class QueryService:
 
     def __init__(self):
         self.intent_service = IntentService()
+        self.planner = QueryPlanner()
 
     # 🔹 Minimal & Safe Normalization
     def _normalize_intent(self, intent):
@@ -34,51 +33,91 @@ class QueryService:
             filters["priority"] = filters["priority"].upper()
 
         intent.filters = filters
+
+        # 🔹 Normalize date_range safety
+        if intent.date_range:
+            if not intent.date_range.start or not intent.date_range.end:
+                intent.date_range = None
+
         return intent
 
     def execute_query(self, user_query: str):
 
-        # Step 1 — Extract intent (Pydantic model)
+        # 1️⃣ Extract intent
         intent = self.intent_service.extract_intent(user_query)
 
-        # Step 2 — Normalize intent
-        intent = self._normalize_intent(intent)
+        # 2️⃣ Planning layer
+        plan = self.planner.plan(intent)
 
-        # 🔐 Step 3 — Enforce Metric Validation
-        if intent.metric not in ALLOWED_METRICS:
-            raise Exception(f"Metric '{intent.metric}' not supported in Fast Path")
+        if plan["execution_type"] != "fast_path":
+            raise Exception("Unsupported execution type")
 
-        # Step 4 — Fast path routing via builder
-        builder = FAST_PATH_BUILDERS.get(intent.metric)
+        planned_intent = plan["intent"]
 
-        if not builder:
-            raise Exception(f"No Fast Path builder for metric '{intent.metric}'")
+        # 3️⃣ Normalize intent AFTER planning
+        planned_intent = self._normalize_intent(planned_intent)
 
-        sql = builder(intent)
+        # 🔥 🔥 🔥 MINIMAL DERIVED METRIC ROUTING
+        if "percentage" in user_query.lower():
+            from app.metrics.derived_ticket_metrics_executor import DerivedTicketMetricsExecutor
 
-        # Step 5 — Execute SQL
+            db = SessionLocal()
+            executor = DerivedTicketMetricsExecutor(planned_intent)
+            result = executor.execute(db)
+            db.close()
+
+            return {
+                "intent": planned_intent.model_dump(),
+                "execution_path": "derived",
+                "result": result
+            }
+
+        # 🔐 Enforce Metric Validation
+        if planned_intent.metric not in ALLOWED_METRICS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Metric '{planned_intent.metric}' not supported"
+            )
+
+        # 🔐 Validate group_by field
+        if planned_intent.group_by:
+            if planned_intent.group_by not in ALLOWED_GROUP_BY_FIELDS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"group_by '{planned_intent.group_by}' not allowed"
+                )
+
+        # 🔐 Validate filter fields
+        filters = planned_intent.filters or {}
+
+        for field in filters.keys():
+            if field not in ALLOWED_FILTER_FIELDS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Filter field '{field}' not allowed"
+                )
+
+        # 5️⃣ Route to Metric Executor
+        executor_class = METRIC_EXECUTORS.get(planned_intent.metric)
+
+        if not executor_class:
+            raise Exception(
+                f"No executor found for metric '{planned_intent.metric}'"
+            )
+
+        executor = executor_class(planned_intent)
+
         start_time = time.time()
 
         db = SessionLocal()
-        result = db.execute(text(sql)).fetchone()
+        result = executor.execute(db)
         db.close()
 
         latency_ms = int((time.time() - start_time) * 1000)
 
         return {
-            "intent": intent.model_dump(),
-            "execution_path": "fast",
-            "sql": sql,
+            "intent": planned_intent.model_dump(),
+            "execution_path": plan["execution_type"],
             "latency_ms": latency_ms,
-            "result": {
-                "value": result[0] if result else None
-            }
+            "result": result
         }
-
-    # Example: Inside any fast-path builder (e.g., build_ticket_count_sql)
-    # Structured DateRange handling:
-    # if date_range and date_range.start and date_range.end:
-    #     conditions.append(
-    #         f"DATE(created_at) BETWEEN DATE('{date_range.start}') "
-    #         f"AND DATE('{date_range.end}')"
-    #     )
