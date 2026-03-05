@@ -75,6 +75,7 @@ If the query clearly implies counting or aggregation,
 you MUST set metric = "ticket_count".
 If user says "most", "highest", "busiest", "peak":
 top_n = 1
+
 -----------------------------------
 FILTER RULES
 -----------------------------------
@@ -84,6 +85,12 @@ Extract filters ONLY if explicitly mentioned.
 Valid filter keys:
 - type: EMER, NORMAL, UPDATE, CANCEL
 - priority: CRITICAL, HIGH, MEDIUM, LOW
+- work_type: FENCE_INSTALL, POOL_INSTALL, UTILITY_REPAIR, ROAD_WORK, TREE_REMOVAL
+- caller_type: HOMEOWNER, CONTRACTOR, UTILITY, CITY
+- category: ROUTINE, LOCATE, DAMAGE, DESIGN
+- county: any county name string
+- place: any place/city name string
+- state: two-letter state abbreviation (e.g. NC, TN, TX)
 
 If a filter is not mentioned, DO NOT include it.
 Do NOT include null values inside filters.

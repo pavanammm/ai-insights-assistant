@@ -13,7 +13,7 @@ from app.models import (
 
 fake = Faker()
 
-TICKET_COUNT = 5000
+TICKET_COUNT = 10000
 
 TICKET_TYPES = ["EMER", "NORMAL", "UPDATE", "CANCEL"]
 TICKET_TYPE_WEIGHTS = [0.08, 0.80, 0.10, 0.02]
