@@ -4,7 +4,8 @@ echo "================================="
 echo "AI Insights Assistant Dev Setup"
 echo "================================="
 
-rm insights.db
+rm /home/pavanam/projects/ai-insights-assistant/backend/insights.db
+
 
 source ../ai-insights-assistant-venv/bin/activate
 echo "Activating virtual environment..."

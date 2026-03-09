@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from fastapi import HTTPException
 from pydantic import ValidationError
+from typing import Optional
 
 from app.ai.intent_schema import IntentModel
 from app.ai.prompts import INTENT_EXTRACTION_PROMPT
@@ -15,20 +16,45 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 class IntentService:
 
-    def extract_intent(self, user_query: str) -> IntentModel:
+    def extract_intent(
+        self,
+        user_query: str,
+        previous_intent: Optional[IntentModel] = None
+    ) -> IntentModel:
 
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
-            # Recommended by OpenRouter
             "HTTP-Referer": "http://localhost",
             "X-Title": "AI Insights Assistant"
         }
 
+        # Build context block if we have a previous intent
+        context_block = ""
+        if previous_intent:
+            context_block = f"""
+-----------------------------------
+CONVERSATION CONTEXT
+-----------------------------------
+The user is continuing a conversation. The previous resolved intent was:
+{previous_intent.model_dump_json(indent=2)}
+
+This is a FOLLOW-UP query. You MUST still return a complete valid JSON object.
+- Always include metric (carry forward from context if not changed)
+- Only include fields the user explicitly changed or added
+- Unchanged fields should be null EXCEPT metric which must always be present
+- If the user only adds a filter, carry forward the metric and set only the new filter
+- If the user only changes group_by, carry forward the metric and set only group_by
+-----------------------------------
+"""
+
         payload = {
             "model": "arcee-ai/trinity-large-preview:free",
             "messages": [
-                {"role": "system", "content": INTENT_EXTRACTION_PROMPT},
+                {
+                    "role": "system",
+                    "content": INTENT_EXTRACTION_PROMPT + context_block
+                },
                 {"role": "user", "content": user_query}
             ],
             "temperature": 0
@@ -50,7 +76,6 @@ class IntentService:
 
         content = data["choices"][0]["message"]["content"]
 
-        # Extract JSON safely
         json_match = re.search(r"\{.*\}", content, re.DOTALL)
         if not json_match:
             raise ValueError(
@@ -60,11 +85,7 @@ class IntentService:
         json_str = json_match.group(0)
         intent_dict = json.loads(json_str)
 
-        # -----------------------------
-        # STEP 2 — Clean ISO String Date Normalization
-        # -----------------------------
         dr = intent_dict.get("date_range")
-
         if isinstance(dr, str):
             if dr.lower() == "today":
                 today = datetime.utcnow().date().isoformat()

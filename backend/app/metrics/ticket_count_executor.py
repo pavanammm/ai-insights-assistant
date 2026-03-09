@@ -40,6 +40,24 @@ class TicketCountExecutor(BaseMetricExecutor):
         if "priority" in filters:
             conditions.append(f"priority = '{filters['priority']}'")
 
+        if "state" in filters:
+            conditions.append(f"state = '{filters['state']}'")
+
+        if "county" in filters:
+            conditions.append(f"county = '{filters['county']}'")
+
+        if "place" in filters:
+            conditions.append(f"place = '{filters['place']}'")
+
+        if "work_type" in filters:
+            conditions.append(f"work_type = '{filters['work_type']}'")
+
+        if "caller_type" in filters:
+            conditions.append(f"caller_type = '{filters['caller_type']}'")
+
+        if "category" in filters:
+            conditions.append(f"category = '{filters['category']}'")
+
         if date_range and date_range.start and date_range.end:
             conditions.append(
                 f"DATE(created_at) BETWEEN DATE('{date_range.start}') "

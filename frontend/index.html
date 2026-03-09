@@ -3,21 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <title>AI Insights Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="container">
-    <h1>AI Insights Assistant</h1>
+<div class="app-shell">
 
-    <div class="query-section">
-        <input type="text" id="questionInput" placeholder="Ask a question...">
-        <button onclick="runQuery()">Ask</button>
-    </div>
+    <aside class="sidebar">
+        <div class="logo">
+            <span class="logo-mark">◈</span>
+            <span class="logo-text">Insights<br><em>Assistant</em></span>
+        </div>
 
-    <div id="loading" class="hidden">Loading...</div>
+        <div class="stat-pills" id="statPills">
+            <div class="stat-pill dimmed">Awaiting query...</div>
+        </div>
 
-    <div id="resultSection"></div>
+        <div class="session-info">
+            <span class="session-label">SESSION</span>
+            <span class="session-id" id="sessionDisplay">—</span>
+            <button class="new-session-btn" onclick="newSession()">↺ New</button>
+        </div>
+    </aside>
+
+    <main class="main-panel">
+
+        <header class="top-bar">
+            <div class="query-wrap">
+                <input
+                    type="text"
+                    id="questionInput"
+                    placeholder="Ask anything about your tickets..."
+                    onkeydown="if(event.key==='Enter') runQuery()"
+                    autocomplete="off"
+                />
+                <button class="ask-btn" onclick="runQuery()">
+                    <span>Ask</span>
+                    <span class="ask-arrow">→</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="result-area">
+
+            <div id="loading" class="loading-state hidden">
+                <div class="pulse-ring"></div>
+                <span>Thinking...</span>
+            </div>
+
+            <div id="emptyState" class="empty-state">
+                <div class="empty-icon">◈</div>
+                <p>Ask a question to see analytics</p>
+                <div class="example-queries">
+                    <span onclick="fillQuery('How many tickets are there?')">How many tickets?</span>
+                    <span onclick="fillQuery('Break down tickets by type')">By type</span>
+                    <span onclick="fillQuery('Tickets by month')">By month</span>
+                    <span onclick="fillQuery('Show top 10 tickets')">Top 10 list</span>
+                </div>
+            </div>
+
+            <div id="resultContainer" class="hidden">
+
+                <div class="result-header">
+                    <div class="result-meta" id="resultMeta"></div>
+                    <div class="view-toggle" id="viewToggle"></div>
+                </div>
+
+                <div id="chartContainer" class="chart-container hidden">
+                    <canvas id="mainChart"></canvas>
+                </div>
+
+                <div id="tableContainer" class="table-container hidden"></div>
+
+                <div id="scalarContainer" class="scalar-container hidden"></div>
+
+                <div class="intent-bar" id="intentBar">
+                    <button class="intent-toggle" onclick="toggleIntent()">
+                        ▶ EXTRACTED INTENT
+                    </button>
+                    <pre class="intent-json hidden" id="intentJson"></pre>
+                </div>
+
+                <div class="followup-chips" id="followupChips"></div>
+
+            </div>
+
+        </div>
+
+    </main>
 </div>
 
 <script src="app.js"></script>
