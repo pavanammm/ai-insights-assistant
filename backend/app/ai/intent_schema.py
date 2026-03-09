@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional, Dict, Any
 
 
@@ -14,3 +14,9 @@ class IntentModel(BaseModel):
     date_range: Optional[DateRange] = None
     comparison: Optional[str] = None
     top_n: Optional[int] = None
+
+    @model_validator(mode="after")
+    def coerce_empty_filters(self) -> "IntentModel":
+        if self.filters == {}:
+            self.filters = None
+        return self
